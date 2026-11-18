@@ -48,10 +48,15 @@ static void ReadSettings() {
 static NpcSnap g_player;
 struct SavedNpc { oCNpc* npc; NpcSnap snap; };
 static std::vector<SavedNpc> g_npcs;   // we hold a reference on each, so the pointers stay valid
+struct SavedItem { oCItem* item; int inst; int amount; zMAT4 trafo; };
+static std::vector<SavedItem> g_items; // ground items around the checkpoint (referenced as well)
+static zVEC3 g_center;
 
 static void DropCheckpoint() {
   for (auto& n : g_npcs) n.npc->Release();
   g_npcs.clear();
+  for (auto& i : g_items) i.item->Release();
+  g_items.clear();
   g_player = NpcSnap{};
 }
 
@@ -60,6 +65,15 @@ template<class F> static void ForEachWorldNpc(F f) {
   if (!w || !w->voblist_npcs) return;
   for (auto* node = w->voblist_npcs->next; node; node = node->next)
     if (node->data) f(node->data);
+}
+
+template<class F> static void ForEachWorldItem(F f) {
+  oCWorld* w = ogame ? ogame->GetGameWorld() : nullptr;
+  if (!w || !w->voblist_items) return;
+  std::vector<oCItem*> items;   // copy first: the callback may remove items from the list
+  for (auto* node = w->voblist_items->next; node; node = node->next)
+    if (node->data) items.push_back(node->data);
+  for (oCItem* it : items) f(it);
 }
 
 static float Dist(zCVob* a, zCVob* b) { return (a->GetPositionWorld() - b->GetPositionWorld()).Length(); }
@@ -75,10 +89,55 @@ static void Checkpoint() {
     g_npcs.push_back({ n, NpcSnap{} });
     TakeNpcSnap(n, g_npcs.back().snap);
   });
+  g_center = p->GetPositionWorld();
+  ForEachWorldItem([&](oCItem* it) {
+    if ((it->GetPositionWorld() - g_center).Length() > g_radius) return;
+    it->AddRef();
+    g_items.push_back({ it, it->instanz, it->amount, it->trafoObjToWorld });
+  });
   char buf[160];
-  sprintf(buf, "checkpoint: player HP %d/%d, %d NPCs within %.0f m", g_player.attribute[0], g_player.attribute[1], (int)g_npcs.size(), g_radius / 100);
+  sprintf(buf, "checkpoint: player HP %d/%d, %d NPCs and %d ground items within %.0f m", g_player.attribute[0], g_player.attribute[1], (int)g_npcs.size(), (int)g_items.size(), g_radius / 100);
   Log(buf);
   Say("Punkt kontrolny zapisany");
+}
+
+// Ground items first (before inventories): whatever appeared around the checkpoint since then is
+// removed (weapons dropped on death, loot, arrows), whatever was picked up is put back, moved items
+// go back to their place. Same calls as the scripts: Wld_InsertItem = CreateVob + SetPosition +
+// AddVob + Release, Wld_RemoveItem = RemoveVob.
+static void RestoreGroundItems(std::string& report) {
+  oCWorld* w = ogame ? ogame->GetGameWorld() : nullptr;
+  if (!w) return;
+  std::unordered_set<oCItem*> saved, present;
+  for (auto& i : g_items) saved.insert(i.item);
+  int removed = 0, created = 0, moved = 0;
+  ForEachWorldItem([&](oCItem* it) {
+    present.insert(it);
+    if (saved.count(it)) return;
+    if ((it->GetPositionWorld() - g_center).Length() > g_radius * 1.5f) return;
+    report += "  remove new ground item " + std::string(it->GetInstanceName().ToChar()) + "\n";
+    w->RemoveVob(it);
+    removed++;
+  });
+  for (auto& i : g_items) {
+    if (present.count(i.item)) {
+      zVEC3 now = i.item->GetPositionWorld(), was(i.trafo[0][3], i.trafo[1][3], i.trafo[2][3]);
+      if ((now - was).Length() > 10.0f) { i.item->SetTrafoObjToWorld(i.trafo); moved++; }
+      i.item->amount = i.amount;
+      continue;
+    }
+    oCItem* it = (oCItem*)w->CreateVob(zVOB_TYPE_ITEM, i.inst);
+    if (!it) continue;
+    it->amount = i.amount;
+    it->SetTrafoObjToWorld(i.trafo);
+    w->AddVob(it);
+    report += "  put back ground item " + std::string(it->GetInstanceName().ToChar()) + "\n";
+    it->Release();
+    created++;
+  }
+  char buf[120];
+  sprintf(buf, "ground items: %d removed, %d put back, %d moved back\n", removed, created, moved);
+  report = buf + report;
 }
 
 static void Rewind() {
@@ -87,7 +146,9 @@ static void Rewind() {
   if (!g_player.valid) { Say("Brak punktu kontrolnego"); return; }
   std::unordered_set<oCNpc*> alive;
   ForEachWorldNpc([&](oCNpc* n) { alive.insert(n); });
-  std::string report = "player:\n";
+  std::string report;
+  RestoreGroundItems(report);
+  report += "player:\n";
   RestoreNpcSnap(p, g_player, report, false);
   int restored = 0, gone = 0;
   for (auto& n : g_npcs) {
