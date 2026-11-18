@@ -35,6 +35,9 @@ void TakeNpcSnap(oCNpc* npc, NpcSnap& s) {
   s.lp = npc->learn_points;
   memcpy(s.aivars, npc->aiscriptvars, sizeof(s.aivars));
   s.weaponMode = npc->GetWeaponMode();
+  s.attitude = npc->attitude;
+  s.tmpAttitude = npc->tmp_attitude;
+  s.enemy = npc->enemy;
   ForEachItem(npc, [](oCItem* it, void* ctx) {
     ((NpcSnap*)ctx)->inv.push_back({ it->instanz, it->amount, it->HasFlag(ITM_FLAG_ACTIVE) != 0 });
   }, &s);
@@ -54,14 +57,19 @@ static std::string InstName(int inst) {
   return n.ToChar() ? n.ToChar() : "?";
 }
 
-void RestoreNpcSnap(oCNpc* npc, const NpcSnap& s, std::string& report) {
+void RestoreNpcSnap(oCNpc* npc, const NpcSnap& s, std::string& report, bool resetAI) {
   char buf[256];
   if (!s.valid) { report += "no snapshot\n"; return; }
-  bool wasDead = npc->IsDead() != 0;
+  bool wasDown = npc->IsDead() || npc->IsUnconscious();
 
-  // stop whatever is going on (pending AI messages, burning, weapon in hand)
+  // stop whatever is going on (pending AI messages, burning)
   npc->ClearEM();
   npc->StopBurn();
+
+  // put the weapon away first: SetWeaponMode2 moves it from the hand back to its slot
+  // (plain SetWeaponMode only switches the mode and the item in the hand falls to the ground)
+  int modeNow = npc->GetWeaponMode();
+  if (modeNow != 0) npc->SetWeaponMode2(0);
 
   // attributes, protection, progression, script vars
   for (int i = 0; i < 8; i++)
@@ -104,11 +112,13 @@ void RestoreNpcSnap(oCNpc* npc, const NpcSnap& s, std::string& report) {
     if (should) c.npc->EquipItem(it); else c.npc->UnequipItem(it);
   }, &ctx);
 
-  // weapon mode
-  if (npc->GetWeaponMode() != s.weaponMode) {
-    sprintf(buf, "  weapon mode %d -> %d\n", npc->GetWeaponMode(), s.weaponMode); report += buf;
-    npc->SetWeaponMode(s.weaponMode);
+  // attitude / hostility
+  if (npc->attitude != s.attitude || npc->tmp_attitude != s.tmpAttitude) {
+    sprintf(buf, "  attitude %d/%d -> %d/%d\n", npc->attitude, npc->tmp_attitude, s.attitude, s.tmpAttitude); report += buf;
   }
+  npc->SetAttitude(s.attitude);
+  npc->SetTmpAttitude(s.tmpAttitude);
+  if (npc->enemy != s.enemy) npc->SetEnemy(s.enemy == oCNpc::player ? s.enemy : nullptr);
 
   // position and orientation (collision off while teleporting)
   zMAT4 m; memcpy(&m, s.trafo, sizeof(s.trafo));
@@ -117,14 +127,20 @@ void RestoreNpcSnap(oCNpc* npc, const NpcSnap& s, std::string& report) {
   npc->SetTrafoObjToWorld(m);
   npc->SetCollDetStat(cd); npc->SetCollDetDyn(cs);
 
-  // experimental: bring a dead NPC back (HP is already > 0 from the attributes above)
-  if (wasDead && !npc->IsDead()) {
-    report += "  revive (experimental)\n";
-    npc->state.ClearAIState();
+  // leave the fight state (ZS_Attack etc.); the AI picks its routine / start state again
+  if (resetAI || wasDown) npc->state.ClearAIState();
+
+  // bring a dead / unconscious NPC back on its feet (HP is already > 0 from the attributes above)
+  if (wasDown && !npc->IsDead()) {
+    report += "  revive\n";
     npc->SetBodyState(0);   // BS_STAND
     if (npc == oCNpc::player && npc->human_ai) npc->human_ai->SetCamMode("CAMMODNORMAL", 0);
     if (npc->anictrl) npc->anictrl->StartStandAni();
   }
+
+  // weapon back in hand if it was drawn at the checkpoint
+  if (s.weaponMode != 0) npc->SetWeaponMode2(s.weaponMode);
+  if (modeNow != s.weaponMode) { sprintf(buf, "  weapon mode %d -> %d\n", modeNow, s.weaponMode); report += buf; }
 }
 
 } // namespace Gothic_I_Classic

@@ -16,10 +16,12 @@ namespace Gothic_I_Classic {
     unsigned long xp = 0, xpNext = 0, lp = 0;
     int aivars[50] = {};
     int weaponMode = 0;
+    int attitude = 0, tmpAttitude = 0;
+    oCNpc* enemy = nullptr;
     std::vector<InvEntry> inv;
   };
 
   void TakeNpcSnap(oCNpc* npc, NpcSnap& s);
   // Applies the snapshot; writes what had to change into 'report'
-  void RestoreNpcSnap(oCNpc* npc, const NpcSnap& s, std::string& report);
+  void RestoreNpcSnap(oCNpc* npc, const NpcSnap& s, std::string& report, bool resetAI);
 }

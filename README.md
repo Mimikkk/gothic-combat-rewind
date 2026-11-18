@@ -2,7 +2,7 @@
 
 Plugin [Union](https://gitlab.com/union-framework/union-api) dla **Gothic I** (1.08k_mod / Steam). Pozwala cofnąć się do stanu tuż sprzed walki, bez wczytywania całej gry: przywraca HP, potwory i przedmioty, a reszta świata zostaje nietknięta.
 
-> Status: **etap 2 z 6**, punkt kontrolny i cofnięcie dla samego gracza na klawisze. Eksperymentalne.
+> Status: **etap 3 z 6**: gracz i NPC w promieniu (domyślnie 35 m), punkt kontrolny i cofnięcie na klawisze. Eksperymentalne.
 
 ## Sterowanie (etap 2)
 
