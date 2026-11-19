@@ -111,6 +111,7 @@ static bool g_inCombat = false;
 static long long g_lastThreat = 0;     // last time an enemy near the player was targeting him
 static long long g_deathTime = -1;
 static bool g_restoring = false;       // our own engine calls must not trigger the automatics
+static long long g_rewindTime = -1;    // last rewind (no new automatic checkpoint shortly after it)
 
 static bool IsThreat(oCNpc* n, oCNpc* p) {
   return n != p && !n->IsDead() && !n->IsUnconscious() && n->enemy == p && Dist(n, p) < g_radius * 1.5f;
@@ -153,6 +154,7 @@ static void OnFightSignal(oCNpc* attacker) {
   oCNpc* p = oCNpc::player;
   if (!g_auto || g_restoring || !p || p->IsDead()) return;
   g_lastThreat = NowMs();
+  if (g_rewindTime >= 0 && NowMs() - g_rewindTime < 8000) g_inCombat = true;   // grace period after a rewind
   if (g_inCombat) {
     if (attacker && g_player.valid) {
       for (auto& n : g_npcs) if (n.npc == attacker) return;
@@ -240,7 +242,12 @@ static void Rewind() {
     restored++;
   }
   g_restoring = false;
-  g_inCombat = false;
+  // The fight continues from the checkpoint: enemies that were already targeting the player at the
+  // checkpoint take him as target again right away, which must not start a "new" fight with a new
+  // checkpoint taken in the middle of it. Only a real calm period ends the fight.
+  g_inCombat = true;
+  g_lastThreat = NowMs();
+  g_rewindTime = NowMs();
   g_deathTime = -1;
   char buf[120];
   sprintf(buf, "rewind: %d NPCs restored (%d changed), %d gone\n", restored, changed, gone);
@@ -305,7 +312,7 @@ void __fastcall SetWeaponMode2_h(oCNpc* self, void* edx, int mode) {
 }
 
 // a load replaces the world: an old checkpoint must not be applied to it
-static void WorldChanging() { DropCheckpoint(); g_cpTime = -1; g_inCombat = false; g_deathTime = -1; UiReset(); }
+static void WorldChanging() { DropCheckpoint(); g_cpTime = -1; g_inCombat = false; g_deathTime = -1; g_rewindTime = -1; UiReset(); }
 
 void __fastcall LoadSavegame_h(void*, void*, int, int);
 auto Hook_LoadSavegame = HOOK(0x0063C2A0, &LoadSavegame_h);
