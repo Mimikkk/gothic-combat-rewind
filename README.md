@@ -64,3 +64,7 @@ RewindFlash=1         ; błysk przy cofnięciu
 ## Budowanie i praca
 
 Tak samo jak w zFastSaveLoad: `tools\dev.ps1` (build i wgranie `System\Autorun\zCombatRewind_dev.dll`), `tools\dis.ps1` (disassembler `GothicMod.exe`), `tools\dumpstack.py` (stos ze zrzutu crasha).
+
+## Steam Workshop
+
+Prywatny (ukryty) element Workshopu, ID `3842553042`. Nowe wersje wysyła `tools\release.ps1 "opis zmian"`. Po wysłaniu Steam czasem nie pobiera aktualizacji sam: wtedy trzeba anulować subskrypcję i zasubskrybować ponownie.

@@ -5,7 +5,7 @@ $System    = Join-Path $Gothic "system"
 $Autorun   = Join-Path $System "Autorun"
 $DevDll    = Join-Path $Autorun "zCombatRewind_dev.dll"
 $BuildDll  = Join-Path $Root "build\zCombatRewind.dll"
-$WorkshopId = ""   # set after the first publish
+$WorkshopId = "3842553042"
 $VsVars    = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
 $env:PATH += ";C:\Program Files (x86)\Microsoft Visual Studio\Installer"
 
