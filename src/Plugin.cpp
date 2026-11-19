@@ -37,7 +37,10 @@ static long long NowMs() { return (long long)GetTickCount64(); }
 static int g_keyCheckpoint = 0x41, g_keyRewind = 0x42;   // KEY_F7, KEY_F8 (DirectInput scan codes)
 static float g_radius = 3500.0f;                         // cm around the player
 static bool g_auto = true;                               // automatic checkpoint before fights
-static long long g_combatEndMs = 6000;                   // calm time that ends a fight
+static long long g_combatEndMs = 10000;                  // calm time that ends a fight
+static float g_chaseRange = 10000.0f;                    // enemies targeting the player count up to this far (cm)
+static int g_minHealthPct = 60;                          // no automatic checkpoint below this health
+static long long g_hurtCooldownMs = 15000;               // ... nor this soon after losing HP
 
 static std::string KeyName(int dik) {
   if (dik >= 0x3B && dik <= 0x44) return "F" + std::to_string(dik - 0x3B + 1);   // F1..F10
@@ -61,6 +64,9 @@ static void ReadSettings() {
   g_keyRewind     = zoptions->ReadInt(sec, "KeyRewind", 0x42);
   g_radius        = (float)zoptions->ReadInt(sec, "Radius", 3500);
   g_auto          = zoptions->ReadInt(sec, "AutoCheckpoint", 1) != 0;
+  g_minHealthPct  = zoptions->ReadInt(sec, "AutoMinHealthPercent", 60);
+  g_combatEndMs   = 1000LL * zoptions->ReadInt(sec, "CombatCalmSeconds", 10);
+  g_chaseRange    = (float)zoptions->ReadInt(sec, "ChaseRange", 10000);
   UiSettings ui;
   ui.indicator = zoptions->ReadInt(sec, "ShowIndicator", 1) != 0;
   ui.hints     = zoptions->ReadInt(sec, "ShowHints", 1) != 0;
@@ -113,8 +119,30 @@ static long long g_deathTime = -1;
 static bool g_restoring = false;       // our own engine calls must not trigger the automatics
 static long long g_rewindTime = -1;    // last rewind (no new automatic checkpoint shortly after it)
 
+static long long g_lastDamage = -1;    // last time the player lost HP
+static int g_lastHp = -1;
+
+// A living enemy targeting the player counts within ChaseRange (default 100 m), not just the checkpoint
+// radius: running away from a chaser must not end the fight.
 static bool IsThreat(oCNpc* n, oCNpc* p) {
-  return n != p && !n->IsDead() && !n->IsUnconscious() && n->enemy == p && Dist(n, p) < g_radius * 1.5f;
+  return n != p && !n->IsDead() && !n->IsUnconscious() && n->enemy == p && Dist(n, p) < g_chaseRange;
+}
+
+static bool AnyThreat(oCNpc* p, oCNpc* except) {
+  bool t = false;
+  ForEachWorldNpc([&](oCNpc* n) { if (!t && n != except && IsThreat(n, p)) t = true; });
+  return t;
+}
+
+static bool RecentlyHurt() { return g_lastDamage >= 0 && NowMs() - g_lastDamage < g_hurtCooldownMs; }
+
+// Is "now" a good moment to start over from? Only at the very start of a fight, in decent shape.
+static bool SafeForAutoCheckpoint(oCNpc* p, oCNpc* attacker, std::string& why) {
+  int hp = p->attribute[0], hpMax = p->attribute[1];
+  if (hpMax > 0 && hp * 100 < hpMax * g_minHealthPct) { why = "health below " + std::to_string(g_minHealthPct) + "%"; return false; }
+  if (RecentlyHurt()) { why = "player was hurt in the last seconds"; return false; }
+  if (AnyThreat(p, attacker)) { why = "another enemy is already targeting the player"; return false; }
+  return true;
 }
 
 static void SnapNpc(oCNpc* n) {
@@ -166,16 +194,25 @@ static void OnFightSignal(oCNpc* attacker) {
   g_inCombat = true;
   // a checkpoint taken moments ago (e.g. weapon drawn just before the enemy noticed us) is better
   if (g_player.valid && NowMs() - g_cpTime < 20000) return;
+  std::string why;
+  if (!SafeForAutoCheckpoint(p, attacker, why)) {
+    Log("auto checkpoint skipped (" + why + "), keeping the previous one");
+    return;
+  }
   Checkpoint(true);
 }
 
+// The fight ends only after a real calm period: nobody within ChaseRange targets the player and the
+// player has not lost HP for CombatCalmSeconds.
 static void UpdateCombat() {
   oCNpc* p = oCNpc::player;
-  if (!g_inCombat || !p) return;
-  bool threat = false;
-  ForEachWorldNpc([&](oCNpc* n) { if (!threat && IsThreat(n, p)) threat = true; });
-  if (threat) g_lastThreat = NowMs();
-  else if (NowMs() - g_lastThreat > g_combatEndMs) g_inCombat = false;
+  if (!p) return;
+  int hp = p->attribute[0];
+  if (g_lastHp >= 0 && hp < g_lastHp && !g_restoring) g_lastDamage = NowMs();
+  g_lastHp = hp;
+  if (!g_inCombat) return;
+  if (AnyThreat(p, nullptr) || RecentlyHurt()) g_lastThreat = NowMs();
+  else if (NowMs() - g_lastThreat > g_combatEndMs) { g_inCombat = false; Log("fight over"); }
 }
 
 // Ground items first (before inventories): whatever appeared around the checkpoint since then is
@@ -312,7 +349,7 @@ void __fastcall SetWeaponMode2_h(oCNpc* self, void* edx, int mode) {
 }
 
 // a load replaces the world: an old checkpoint must not be applied to it
-static void WorldChanging() { DropCheckpoint(); g_cpTime = -1; g_inCombat = false; g_deathTime = -1; g_rewindTime = -1; UiReset(); }
+static void WorldChanging() { DropCheckpoint(); g_cpTime = -1; g_inCombat = false; g_deathTime = -1; g_rewindTime = -1; g_lastDamage = -1; g_lastHp = -1; UiReset(); }
 
 void __fastcall LoadSavegame_h(void*, void*, int, int);
 auto Hook_LoadSavegame = HOOK(0x0063C2A0, &LoadSavegame_h);

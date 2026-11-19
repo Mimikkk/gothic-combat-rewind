@@ -6,7 +6,7 @@ Plugin [Union](https://gitlab.com/union-framework/union-api) dla **Gothic I** (1
 
 ## Jak to działa w grze
 
-- **Automatycznie:** punkt kontrolny powstaje sam, gdy wyjmiesz broń przy wrogu albo gdy wróg weźmie Cię na cel. W trakcie walki nie jest nadpisywany. Przeciwnicy, którzy dołączą później, są dopisywani do punktu w chwili dołączenia. Walka kończy się, gdy przez kilka sekund nikt w pobliżu nie celuje w gracza.
+- **Automatycznie:** punkt kontrolny powstaje sam, gdy wyjmiesz broń przy wrogu albo gdy wróg weźmie Cię na cel. W trakcie walki nie jest nadpisywany. Przeciwnicy, którzy dołączą później, są dopisywani do punktu w chwili dołączenia. Walka kończy się dopiero po 10 s spokoju: nikt w promieniu 100 m nie celuje w gracza (także w pościgu) i gracz nie traci HP. Automatyczny punkt powstaje tylko na początku walki: gdy nikt inny jeszcze nie celuje w gracza, gracz ma co najmniej 60% HP i nie dostał obrażeń przez ostatnie 15 s. W przeciwnym razie zostaje poprzedni punkt.
 - **F7:** punkt kontrolny ręcznie.
 - **F8:** cofnięcie, także po śmierci.
 
@@ -28,6 +28,9 @@ KeyCheckpoint=65      ; kod DirectInput (65 = F7)
 KeyRewind=66          ; 66 = F8
 Radius=3500           ; promień w cm wokół gracza
 AutoCheckpoint=1      ; automatyczny punkt kontrolny przed walką
+AutoMinHealthPercent=60 ; bez automatycznego punktu poniżej tego % zdrowia
+CombatCalmSeconds=10  ; tyle sekund spokoju kończy walkę
+ChaseRange=10000      ; wróg celujący w gracza liczy się do tej odległości (cm), także w pościgu
 ShowIndicator=1       ; wskaźnik nad paskiem zdrowia
 ShowHints=1           ; podpowiedź przy starcie
 Sounds=1              ; dźwięki (MFX_LIGHT_CAST, MFX_TELEPORT_CAST)
