@@ -11,7 +11,7 @@ set(GOTHIC_API_G1 ON CACHE BOOL "" FORCE)
 add_subdirectory(deps/union-api)
 add_subdirectory(deps/gothic-api)
 
-add_library(zCombatRewind SHARED src/Plugin.cpp src/Snapshot.cpp)
+add_library(zCombatRewind SHARED src/Plugin.cpp src/Snapshot.cpp src/Ui.cpp)
 target_link_libraries(zCombatRewind PRIVATE gothic_api union_api_lib)
 target_compile_options(zCombatRewind PRIVATE /bigobj /W3 /wd4005 /wd4996 /utf-8)
 target_compile_definitions(zCombatRewind PRIVATE _CRT_SECURE_NO_WARNINGS)

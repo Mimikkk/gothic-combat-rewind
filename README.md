@@ -2,18 +2,37 @@
 
 Plugin [Union](https://gitlab.com/union-framework/union-api) dla **Gothic I** (1.08k_mod / Steam). Pozwala cofnąć się do stanu tuż sprzed walki, bez wczytywania całej gry: przywraca HP, potwory i przedmioty, a reszta świata zostaje nietknięta.
 
-> Status: **etap 3 z 6**: gracz i NPC w promieniu (domyślnie 35 m), punkt kontrolny i cofnięcie na klawisze. Eksperymentalne.
+> Status: gracz, NPC i przedmioty w promieniu, automatyczny punkt kontrolny przed walką, interfejs. Eksperymentalne.
 
-## Sterowanie (etap 2)
+## Jak to działa w grze
 
-| Klawisz | Działanie |
+- **Automatycznie:** punkt kontrolny powstaje sam, gdy wyjmiesz broń przy wrogu albo gdy wróg weźmie Cię na cel. W trakcie walki nie jest nadpisywany. Przeciwnicy, którzy dołączą później, są dopisywani do punktu w chwili dołączenia. Walka kończy się, gdy przez kilka sekund nikt w pobliżu nie celuje w gracza.
+- **F7:** punkt kontrolny ręcznie.
+- **F8:** cofnięcie, także po śmierci.
+
+| Sytuacja | Na ekranie |
 |---|---|
-| **F7** | zapisz punkt kontrolny (gracz) |
-| **F8** | cofnij do punktu kontrolnego |
+| Punkt kontrolny | Komunikat na tle okna dialogowego („Punkt kontrolny” / „Punkt kontrolny przed walką”, „F8 — cofnij do tej chwili”) i cichy dźwięk |
+| Cofnięcie | Niebieskawy błysk, dźwięk teleportu, „Czas cofnięty — Przywrócono 3 postacie, 2 przedmioty” |
+| Stały wskaźnik | Nad paskiem zdrowia: „Punkt kontrolny · 0:42”, a w walce złote „W walce · punkt 0:42” |
+| Śmierć | Ekran ciemnieje: „Poległeś”, „F8 — cofnij do punktu kontrolnego (sprzed 0:42)”, „ESC — menu gry” |
+| Start gry | Jednorazowa podpowiedź z klawiszami |
 
-Klawisze można zmienić w `System\GOTHIC.INI`, w sekcji `[ZCOMBATREWIND]`: `KeyCheckpoint` i `KeyRewind` przyjmują kody DirectInput (F7 = 65, F8 = 66). Po każdym cofnięciu `System\zCombatRewind.log` pokazuje, co zostało zmienione.
+Wczytanie zapisu albo zmiana poziomu kasuje punkt kontrolny. Szczegóły każdego cofnięcia trafiają do `System\zCombatRewind.log`.
 
-Wczytanie zapisu albo zmiana poziomu kasuje punkt kontrolny.
+## Ustawienia (`System\GOTHIC.INI`, sekcja `[ZCOMBATREWIND]`)
+
+```ini
+[ZCOMBATREWIND]
+KeyCheckpoint=65      ; kod DirectInput (65 = F7)
+KeyRewind=66          ; 66 = F8
+Radius=3500           ; promień w cm wokół gracza
+AutoCheckpoint=1      ; automatyczny punkt kontrolny przed walką
+ShowIndicator=1       ; wskaźnik nad paskiem zdrowia
+ShowHints=1           ; podpowiedź przy starcie
+Sounds=1              ; dźwięki (MFX_LIGHT_CAST, MFX_TELEPORT_CAST)
+RewindFlash=1         ; błysk przy cofnięciu
+```
 
 ## Co jest przywracane (gracz)
 
