@@ -53,7 +53,6 @@ static bool EnsureViews() {
   if (!g_text) {
     g_text = MakeLayer(nullptr, 0, 0, 8192, 8192);
     screen->InsertItem(g_text);
-    g_panel = MakeLayer("DLG_CONVERSATION.TGA", 2048, 5650, 6144, 6450);
     g_flash = MakeLayer("WHITE.TGA", 0, 0, 8192, 8192);
     g_flash->SetColor(zCOLOR(170, 200, 255, 255));
     g_dim = MakeLayer("WHITE.TGA", 0, 0, 8192, 8192);
@@ -148,17 +147,15 @@ void UiFrame(long long cpAge, bool inCombat, long long deadFor) {
     }
   }
 
-  // toast
+  // toast: top of the screen, text only
   int ta = g_toast.start >= 0 ? Fade(now - g_toast.start, kIn, kHold, kOut) : 0;
-  Show(g_panel, g_panelIn, ta > 0 && !deathPrompt);
   if (ta > 0 && !deathPrompt) {
-    g_panel->SetTransparency(ta * 200 / 255);
     zCOLOR title = g_toast.kind == ToastKind::Rewind ? zCOLOR(170, 205, 255, (unsigned char)ta)
                  : g_toast.kind == ToastKind::Checkpoint ? zCOLOR(240, 205, 120, (unsigned char)ta)
                  : zCOLOR(230, 230, 230, (unsigned char)ta);
-    PrintCentered(5750, "FONT_OLD_20_WHITE.TGA", title, g_toast.title);
+    PrintCentered(600, "FONT_OLD_20_WHITE.TGA", title, g_toast.title);
     if (!g_toast.sub.empty())
-      PrintCentered(6130, "FONT_OLD_10_WHITE.TGA", zCOLOR(215, 215, 215, (unsigned char)ta), g_toast.sub);
+      PrintCentered(980, "FONT_OLD_10_WHITE.TGA", zCOLOR(215, 215, 215, (unsigned char)ta), g_toast.sub);
   }
 
   // rewind flash
@@ -171,7 +168,7 @@ void UiFrame(long long cpAge, bool inCombat, long long deadFor) {
     g_text->SetFont(zSTRING("FONT_OLD_10_WHITE.TGA"));
     std::string t = inCombat ? "W walce  ·  punkt " + Clock(cpAge) : "Punkt kontrolny  ·  " + Clock(cpAge);
     g_text->SetFontColor(inCombat ? zCOLOR(240, 205, 120, 220) : zCOLOR(200, 200, 200, 140));
-    g_text->Print(130, 7560, Z(t));
+    g_text->Print(130, 7250, Z(t));
   }
 }
 

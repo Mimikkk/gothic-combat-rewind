@@ -12,9 +12,9 @@ Plugin [Union](https://gitlab.com/union-framework/union-api) dla **Gothic I** (1
 
 | Sytuacja | Na ekranie |
 |---|---|
-| Punkt kontrolny | Komunikat na tle okna dialogowego („Punkt kontrolny” / „Punkt kontrolny przed walką”, „F8 — cofnij do tej chwili”) i cichy dźwięk |
+| Punkt kontrolny | Komunikat u góry ekranu („Punkt kontrolny” / „Punkt kontrolny przed walką”, „F8 — cofnij do tej chwili”) i cichy dźwięk |
 | Cofnięcie | Niebieskawy błysk, dźwięk teleportu, „Czas cofnięty — Przywrócono 3 postacie, 2 przedmioty” |
-| Stały wskaźnik | Nad paskiem zdrowia: „Punkt kontrolny · 0:42”, a w walce złote „W walce · punkt 0:42” |
+| Stały wskaźnik | Nieco nad paskiem zdrowia: „Punkt kontrolny · 0:42”, a w walce złote „W walce · punkt 0:42” |
 | Śmierć | Ekran ciemnieje: „Poległeś”, „F8 — cofnij do punktu kontrolnego (sprzed 0:42)”, „ESC — menu gry” |
 | Start gry | Jednorazowa podpowiedź z klawiszami |
 
