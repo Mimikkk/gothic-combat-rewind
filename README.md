@@ -6,7 +6,7 @@ Plugin [Union](https://gitlab.com/union-framework/union-api) dla **Gothic I** (1
 
 ## Jak to działa w grze
 
-- **Automatycznie:** punkt kontrolny powstaje sam, gdy wyjmiesz broń przy wrogu albo gdy wróg weźmie Cię na cel. W trakcie walki nie jest nadpisywany. Przeciwnicy, którzy dołączą później, są dopisywani do punktu w chwili dołączenia. Walka kończy się dopiero po 10 s spokoju: nikt w promieniu 100 m nie celuje w gracza (także w pościgu) i gracz nie traci HP. Automatyczny punkt powstaje tylko na początku walki: gdy nikt inny jeszcze nie celuje w gracza, gracz ma co najmniej 60% HP i nie dostał obrażeń przez ostatnie 15 s. W przeciwnym razie zostaje poprzedni punkt.
+- **Automatycznie:** punkt kontrolny powstaje, gdy wyjmiesz broń (pięści, broń białą, łuk lub kuszę, zaklęcie), o ile nikt Cię nie ściga, czyli żaden żywy wróg w promieniu 100 m nie ma Cię za cel. Między automatycznymi punktami musi minąć co najmniej 10 s (także po cofnięciu). Zapis następuje przed wyjęciem broni. To, że wróg bierze Cię na cel, nie tworzy punktu, ale jeśli nie był objęty bieżącym punktem, zostaje do niego dopisany.
 - **F7:** punkt kontrolny ręcznie.
 - **F8:** cofnięcie, także po śmierci.
 
@@ -28,9 +28,10 @@ KeyCheckpoint=65      ; kod DirectInput (65 = F7)
 KeyRewind=66          ; 66 = F8
 Radius=3500           ; promień w cm wokół gracza
 AutoCheckpoint=1      ; automatyczny punkt kontrolny przed walką
-AutoMinHealthPercent=60 ; bez automatycznego punktu poniżej tego % zdrowia
-CombatCalmSeconds=10  ; tyle sekund spokoju kończy walkę
-ChaseRange=10000      ; wróg celujący w gracza liczy się do tej odległości (cm), także w pościgu
+AutoThrottleSeconds=10 ; minimalny odstęp między automatycznymi punktami
+AutoMinHealthPercent=0 ; opcjonalnie: bez automatycznego punktu poniżej tego % zdrowia (0 = wyłączone)
+CombatCalmSeconds=10  ; po tylu sekundach spokoju wskaźnik przestaje pokazywać „W walce”
+ChaseRange=10000      ; wróg celujący w gracza do tej odległości (cm) blokuje automatyczny punkt (pościg)
 ShowIndicator=1       ; wskaźnik nad paskiem zdrowia
 ShowHints=1           ; podpowiedź przy starcie
 Sounds=1              ; dźwięki (MFX_LIGHT_CAST, MFX_TELEPORT_CAST)

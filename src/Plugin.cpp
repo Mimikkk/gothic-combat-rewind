@@ -39,8 +39,9 @@ static float g_radius = 3500.0f;                         // cm around the player
 static bool g_auto = true;                               // automatic checkpoint before fights
 static long long g_combatEndMs = 10000;                  // calm time that ends a fight
 static float g_chaseRange = 10000.0f;                    // enemies targeting the player count up to this far (cm)
-static int g_minHealthPct = 60;                          // no automatic checkpoint below this health
-static long long g_hurtCooldownMs = 15000;               // ... nor this soon after losing HP
+static int g_minHealthPct = 0;                           // optional: no automatic checkpoint below this health
+static long long g_hurtCooldownMs = 15000;               // losing HP keeps the "in combat" state this long
+static long long g_throttleMs = 10000;                   // minimum time between automatic checkpoints
 
 static std::string KeyName(int dik) {
   if (dik >= 0x3B && dik <= 0x44) return "F" + std::to_string(dik - 0x3B + 1);   // F1..F10
@@ -64,7 +65,8 @@ static void ReadSettings() {
   g_keyRewind     = zoptions->ReadInt(sec, "KeyRewind", 0x42);
   g_radius        = (float)zoptions->ReadInt(sec, "Radius", 3500);
   g_auto          = zoptions->ReadInt(sec, "AutoCheckpoint", 1) != 0;
-  g_minHealthPct  = zoptions->ReadInt(sec, "AutoMinHealthPercent", 60);
+  g_minHealthPct  = zoptions->ReadInt(sec, "AutoMinHealthPercent", 0);
+  g_throttleMs    = 1000LL * zoptions->ReadInt(sec, "AutoThrottleSeconds", 10);
   g_combatEndMs   = 1000LL * zoptions->ReadInt(sec, "CombatCalmSeconds", 10);
   g_chaseRange    = (float)zoptions->ReadInt(sec, "ChaseRange", 10000);
   UiSettings ui;
@@ -136,12 +138,17 @@ static bool AnyThreat(oCNpc* p, oCNpc* except) {
 
 static bool RecentlyHurt() { return g_lastDamage >= 0 && NowMs() - g_lastDamage < g_hurtCooldownMs; }
 
-// Is "now" a good moment to start over from? Only at the very start of a fight, in decent shape.
-static bool SafeForAutoCheckpoint(oCNpc* p, oCNpc* attacker, std::string& why) {
+static long long g_lastAutoCp = -1;   // last automatic checkpoint (throttle)
+
+// Is "now" a good moment to start over from? Not while chased, not right after another automatic
+// checkpoint or a rewind, optionally not below a health threshold (AutoMinHealthPercent, 0 = off).
+static bool SafeForAutoCheckpoint(oCNpc* p, std::string& why) {
+  long long now = NowMs();
+  if (AnyThreat(p, nullptr)) { why = "an enemy is targeting / chasing the player"; return false; }
+  if (g_lastAutoCp >= 0 && now - g_lastAutoCp < g_throttleMs) { why = "throttle"; return false; }
+  if (g_rewindTime >= 0 && now - g_rewindTime < g_throttleMs) { why = "just rewound"; return false; }
   int hp = p->attribute[0], hpMax = p->attribute[1];
-  if (hpMax > 0 && hp * 100 < hpMax * g_minHealthPct) { why = "health below " + std::to_string(g_minHealthPct) + "%"; return false; }
-  if (RecentlyHurt()) { why = "player was hurt in the last seconds"; return false; }
-  if (AnyThreat(p, attacker)) { why = "another enemy is already targeting the player"; return false; }
+  if (g_minHealthPct > 0 && hpMax > 0 && hp * 100 < hpMax * g_minHealthPct) { why = "health below " + std::to_string(g_minHealthPct) + "%"; return false; }
   return true;
 }
 
@@ -176,30 +183,29 @@ static void Checkpoint(bool automatic) {
   UiSound(false);
 }
 
-// Automatic checkpoint: when the player draws a weapon near an enemy, or an enemy takes the player as
-// target. Never during a fight; enemies joining a running fight are added to the checkpoint as they come.
-static void OnFightSignal(oCNpc* attacker) {
+// Automatic checkpoint: the player draws a weapon (melee, ranged or a spell) while nobody is chasing
+// him, at most once per AutoThrottleSeconds.
+static void OnWeaponDrawn() {
   oCNpc* p = oCNpc::player;
   if (!g_auto || g_restoring || !p || p->IsDead()) return;
-  g_lastThreat = NowMs();
-  if (g_rewindTime >= 0 && NowMs() - g_rewindTime < 8000) g_inCombat = true;   // grace period after a rewind
-  if (g_inCombat) {
-    if (attacker && g_player.valid) {
-      for (auto& n : g_npcs) if (n.npc == attacker) return;
-      SnapNpc(attacker);
-      Log("late joiner added to the checkpoint: " + std::string(attacker->GetInstanceName().ToChar()));
-    }
-    return;
-  }
-  g_inCombat = true;
-  // a checkpoint taken moments ago (e.g. weapon drawn just before the enemy noticed us) is better
-  if (g_player.valid && NowMs() - g_cpTime < 20000) return;
   std::string why;
-  if (!SafeForAutoCheckpoint(p, attacker, why)) {
-    Log("auto checkpoint skipped (" + why + "), keeping the previous one");
+  if (!SafeForAutoCheckpoint(p, why)) {
+    if (why != "throttle") Log("auto checkpoint skipped (" + why + "), keeping the previous one");
     return;
   }
   Checkpoint(true);
+  g_lastAutoCp = NowMs();
+}
+
+// An enemy takes the player as target: no checkpoint, but if it was not near enough to be part of the
+// current checkpoint it is added now, so a rewind also resets enemies that joined later.
+static void OnTargeted(oCNpc* attacker) {
+  if (g_restoring || !attacker || !g_player.valid) return;
+  g_inCombat = true;
+  g_lastThreat = NowMs();
+  for (auto& n : g_npcs) if (n.npc == attacker) return;
+  SnapNpc(attacker);
+  Log("late joiner added to the checkpoint: " + std::string(attacker->GetInstanceName().ToChar()));
 }
 
 // The fight ends only after a real calm period: nobody within ChaseRange targets the player and the
@@ -329,23 +335,17 @@ auto Hook_SetEnemy = HOOK(0x00691A80, &SetEnemy_h);
 void __fastcall SetEnemy_h(oCNpc* self, void* edx, oCNpc* enemy) {
   bool fresh = enemy && enemy == oCNpc::player && self != enemy && self->enemy != enemy;
   Hook_SetEnemy(self, edx, enemy);
-  if (fresh && !self->IsDead()) OnFightSignal(self);
+  if (fresh && !self->IsDead()) OnTargeted(self);
 }
 
-// oCNpc::SetWeaponMode2(int) (0x00695A60): the player draws a weapon with an enemy around
+// oCNpc::SetWeaponMode2(int) (0x00695A60): the player draws a weapon (fists, melee, ranged or a
+// spell) from the sheathed state - the trigger for an automatic checkpoint
 void __fastcall SetWeaponMode2_h(oCNpc*, void*, int);
 auto Hook_SetWeaponMode2 = HOOK(0x00695A60, &SetWeaponMode2_h);
 void __fastcall SetWeaponMode2_h(oCNpc* self, void* edx, int mode) {
   int before = self->GetWeaponMode();
+  if (self == oCNpc::player && before == 0 && mode != 0 && !g_restoring) OnWeaponDrawn();   // state before the draw
   Hook_SetWeaponMode2(self, edx, mode);
-  oCNpc* p = oCNpc::player;
-  if (self != p || before != 0 || mode == 0 || g_inCombat || g_restoring) return;
-  bool enemyNear = false;
-  ForEachWorldNpc([&](oCNpc* n) {
-    if (enemyNear || n == p || n->IsDead() || n->IsUnconscious() || Dist(n, p) > g_radius) return;
-    if (n->GetAttitude(p) <= 1 /* NPC_ATT_HOSTILE / NPC_ATT_ANGRY */ || n->enemy == p) enemyNear = true;
-  });
-  if (enemyNear) OnFightSignal(nullptr);
 }
 
 // a load replaces the world: an old checkpoint must not be applied to it
